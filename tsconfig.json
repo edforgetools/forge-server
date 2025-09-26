@@ -1,13 +1,30 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ES2022",
+    "target": "ES2021",
+    "lib": [
+      "ES2021"
+    ],
+    "module": "CommonJS",
     "moduleResolution": "Node",
     "outDir": "dist",
-    "esModuleInterop": true,
+    "rootDir": ".",
     "strict": true,
-    "skipLibCheck": true
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "types": [
+      "node"
+    ]
   },
-  "include": ["**/*.ts"],
-  "exclude": ["dist", "node_modules"]
+  "include": [
+    "*.ts",
+    "src",
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.*",
+    "**/__tests__/**"
+  ]
 }
