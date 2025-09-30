@@ -1,3 +1,28 @@
 {
-    "git.ignoreLimitWarning": true
+  // Prettier formatting
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true,
+
+  // Tabs and indentation
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+
+  // TypeScript / JavaScript
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.preferences.importModuleSpecifier": "non-relative",
+  "javascript.updateImportsOnFileMove.enabled": "always",
+
+  // React
+  "emmet.includeLanguages": {
+    "javascript": "javascriptreact",
+    "typescript": "typescriptreact"
+  },
+
+  // Git
+  "git.ignoreLimitWarning": true,
+
+  // Files
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true
 }

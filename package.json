@@ -1,13 +1,42 @@
 {
   "name": "forge-server",
   "private": true,
-  "devDependencies": {
-    "typescript": "^5.5.4",
-    "@types/node": "^20.12.12"
-  },
+  "version": "0.1.0",
+  "main": "dist/index.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "ts-node-dev --respawn --transpile-only index.ts || node --watch index.ts"
-  }
+    "dev": "node -e \"console.log('🚀 Starting Forge Server...'); console.log('📡 API Base URL:', process.env.VITE_API_BASE || 'http://localhost:8787'); console.log('🔧 Port:', process.env.PORT || '8787'); console.log('');\" && tsx watch index.ts --clear-screen=false",
+    "dev:with-info": "node -e \"console.log('🚀 Starting Forge Server...'); console.log('📡 API Base URL:', process.env.VITE_API_BASE || 'http://localhost:8787'); console.log('🔧 Port:', process.env.PORT || '8787'); console.log('');\" && tsx watch index.ts --clear-screen=false",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0",
+    "multer": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/archiver": "^6.0.3",
+    "@types/cors": "^2.8.19",
+    "@types/dotenv": "^8.2.0",
+    "@types/express": "^5.0.3",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.2"
+  },
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "outDir": "dist",
+    "rootDir": "src",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "src"
+  ]
 }
