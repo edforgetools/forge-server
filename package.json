@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "dev": "node -e \"console.log('🚀 Starting Forge Server...'); console.log('📡 API Base URL:', process.env.VITE_API_BASE || 'http://localhost:8787'); console.log('🔧 Port:', process.env.PORT || '8787'); console.log('');\" && tsx watch index.ts --clear-screen=false",
     "dev:with-info": "node -e \"console.log('🚀 Starting Forge Server...'); console.log('📡 API Base URL:', process.env.VITE_API_BASE || 'http://localhost:8787'); console.log('🔧 Port:', process.env.PORT || '8787'); console.log('');\" && tsx watch index.ts --clear-screen=false",
@@ -34,17 +34,5 @@
     "ts-jest": "^29.4.4",
     "tsx": "^4.20.6",
     "typescript": "^5.9.2"
-  },
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "CommonJS",
-    "outDir": "dist",
-    "rootDir": "src",
-    "esModuleInterop": true,
-    "strict": true,
-    "skipLibCheck": true
-  },
-  "include": [
-    "src"
-  ]
+  }
 }
