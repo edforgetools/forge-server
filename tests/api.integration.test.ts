@@ -507,4 +507,53 @@ describe('API Endpoint Consistency Tests', () => {
       expect(response.body.error).toContain('Invalid JSON format');
     });
   });
+
+  describe('API Response Format Consistency', () => {
+    it('should return consistent response format for all endpoints', async () => {
+      // Test health endpoint
+      const healthResponse = await request(app).get('/api/health');
+      expect(healthResponse.body).toHaveProperty('ok', true);
+
+      // Test captions endpoint with valid data
+      const captionsResponse = await request(app)
+        .post('/api/captions')
+        .send({ transcript: 'Test transcript' });
+      expect(captionsResponse.body).toHaveProperty('ok', true);
+
+      // Test log endpoint with valid data
+      const logResponse = await request(app)
+        .post('/api/log')
+        .send({ name: 'test-event' });
+      expect(logResponse.body).toHaveProperty('ok', true);
+
+      // Test exportZip endpoint with valid data
+      const exportResponse = await request(app)
+        .post('/api/exportZip')
+        .send({ transcript: 'Test content' });
+      expect(exportResponse.status).toBe(200); // ZIP response, not JSON
+    });
+
+    it('should return consistent error format for all endpoints', async () => {
+      // Test captions endpoint with invalid data
+      const captionsResponse = await request(app)
+        .post('/api/captions')
+        .send({});
+      expect(captionsResponse.body).toHaveProperty('ok', false);
+      expect(captionsResponse.body).toHaveProperty('error');
+
+      // Test log endpoint with invalid data
+      const logResponse = await request(app)
+        .post('/api/log')
+        .send({});
+      expect(logResponse.body).toHaveProperty('ok', false);
+      expect(logResponse.body).toHaveProperty('error');
+
+      // Test exportZip endpoint with invalid data
+      const exportResponse = await request(app)
+        .post('/api/exportZip')
+        .send({});
+      expect(exportResponse.body).toHaveProperty('ok', false);
+      expect(exportResponse.body).toHaveProperty('error');
+    });
+  });
 });
