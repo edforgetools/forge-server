@@ -8,7 +8,10 @@
     "start": "node dist/index.js",
     "dev": "node -e \"console.log('🚀 Starting Forge Server...'); console.log('📡 API Base URL:', process.env.VITE_API_BASE || 'http://localhost:8787'); console.log('🔧 Port:', process.env.PORT || '8787'); console.log('');\" && tsx watch index.ts --clear-screen=false",
     "dev:with-info": "node -e \"console.log('🚀 Starting Forge Server...'); console.log('📡 API Base URL:', process.env.VITE_API_BASE || 'http://localhost:8787'); console.log('🔧 Port:', process.env.PORT || '8787'); console.log('');\" && tsx watch index.ts --clear-screen=false",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "archiver": "^7.0.1",
@@ -22,8 +25,13 @@
     "@types/cors": "^2.8.19",
     "@types/dotenv": "^8.2.0",
     "@types/express": "^5.0.3",
+    "@types/jest": "^30.0.0",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.5.2",
+    "@types/supertest": "^6.0.3",
+    "jest": "^30.2.0",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.4",
     "tsx": "^4.20.6",
     "typescript": "^5.9.2"
   },
