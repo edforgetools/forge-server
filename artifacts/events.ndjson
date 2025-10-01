@@ -1,0 +1,10 @@
+{"ts":"2024-01-15T10:30:45.123Z","level":"info","event":"user-action","userAnonId":"anon_abc123","payload":{"action":"click","component":"Button","page":"dashboard"}}
+{"ts":"2024-01-15T10:30:46.456Z","level":"debug","event":"api-request","userAnonId":"anon_abc123","payload":{"method":"POST","endpoint":"/api/captions","duration":1250,"status":200}}
+{"ts":"2024-01-15T10:30:47.789Z","level":"warn","event":"slow-response","userAnonId":"anon_xyz789","payload":{"endpoint":"/api/transcribe","duration":8500,"threshold":5000}}
+{"ts":"2024-01-15T10:30:48.012Z","level":"error","event":"error","userAnonId":"anon_abc123","payload":{"message":"Failed to process audio file","stack":"Error: Failed to process audio file\n    at AudioProcessor.process (/app/src/audio.js:45:12)\n    at async handleTranscription (/app/index.js:89:23)","context":"audio-processing","fileSize":15728640}}
+{"ts":"2024-01-15T10:30:49.345Z","level":"info","event":"user-login","userAnonId":"anon_def456","payload":{"method":"oauth","provider":"google","sessionId":"sess_xyz123"}}
+{"ts":"2024-01-15T10:30:50.678Z","level":"debug","event":"file-upload","userAnonId":"anon_abc123","payload":{"filename":"sample.mp3","size":5242880,"mimeType":"audio/mpeg","uploadDuration":3200}}
+{"ts":"2024-01-15T10:30:51.901Z","level":"info","event":"caption-generated","userAnonId":"anon_abc123","payload":{"tone":"professional","platform":"twitter","length":95,"processingTime":2100}}
+{"ts":"2024-01-15T10:30:52.234Z","level":"warn","event":"rate-limit-approaching","userAnonId":"anon_xyz789","payload":{"endpoint":"/api/captions","currentUsage":45,"limit":50,"resetTime":"2024-01-15T11:00:00.000Z"}}
+{"ts":"2024-01-15T10:30:53.567Z","level":"error","event":"error","userAnonId":"anon_def456","payload":{"message":"Invalid file format","context":"file-validation","receivedType":"text/plain","expectedTypes":["audio/","video/"]}}
+{"ts":"2024-01-15T10:30:54.890Z","level":"info","event":"export-completed","userAnonId":"anon_abc123","payload":{"format":"zip","files":["transcript.txt","tweet.txt","instagram.txt"],"totalSize":2048}}

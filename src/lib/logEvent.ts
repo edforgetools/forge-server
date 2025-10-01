@@ -1,6 +1,9 @@
 interface LogEventData {
-  name: string;
-  meta?: Record<string, any>;
+  ts: string;
+  level: string;
+  event: string;
+  userAnonId: string;
+  payload?: Record<string, any>;
 }
 
 interface LogResponse {
@@ -10,14 +13,24 @@ interface LogResponse {
 
 /**
  * Centralized logging function that posts log events to the /api/log endpoint
- * @param name - The name/type of the log event
- * @param meta - Optional metadata object to include with the log
+ * @param level - The log level (debug, info, warn, error)
+ * @param event - The name/type of the log event
+ * @param userAnonId - Anonymous user identifier
+ * @param payload - Optional payload object to include with the log
  */
 export async function logEvent(
-  name: string,
-  meta?: Record<string, any>
+  level: string,
+  event: string,
+  userAnonId: string,
+  payload?: Record<string, any>
 ): Promise<void> {
-  const logData: LogEventData = { name, meta };
+  const logData: LogEventData = {
+    ts: new Date().toISOString(),
+    level,
+    event,
+    userAnonId,
+    payload: payload || {},
+  };
 
   try {
     const response = await fetch("/api/log", {
@@ -35,23 +48,25 @@ export async function logEvent(
   } catch (error) {
     // Fallback to console if the API is unavailable
     console.error("Failed to send log event:", error);
-    console.log(`[log-event] ${name}`, meta);
+    console.log(`[log-event] ${event}`, payload);
   }
 }
 
 /**
  * Convenience function for logging errors
  * @param error - The error to log
+ * @param userAnonId - Anonymous user identifier
  * @param context - Optional context about where the error occurred
  */
 export async function logError(
   error: Error | string,
+  userAnonId: string,
   context?: Record<string, any>
 ): Promise<void> {
   const errorMessage = error instanceof Error ? error.message : error;
   const errorStack = error instanceof Error ? error.stack : undefined;
 
-  await logEvent("error", {
+  await logEvent("error", "error", userAnonId, {
     message: errorMessage,
     stack: errorStack,
     ...context,
@@ -61,29 +76,33 @@ export async function logError(
 /**
  * Convenience function for logging info messages
  * @param message - The info message to log
- * @param meta - Optional metadata
+ * @param userAnonId - Anonymous user identifier
+ * @param payload - Optional payload
  */
 export async function logInfo(
   message: string,
-  meta?: Record<string, any>
+  userAnonId: string,
+  payload?: Record<string, any>
 ): Promise<void> {
-  await logEvent("info", {
+  await logEvent("info", "info", userAnonId, {
     message,
-    ...meta,
+    ...payload,
   });
 }
 
 /**
  * Convenience function for logging warnings
  * @param message - The warning message to log
- * @param meta - Optional metadata
+ * @param userAnonId - Anonymous user identifier
+ * @param payload - Optional payload
  */
 export async function logWarning(
   message: string,
-  meta?: Record<string, any>
+  userAnonId: string,
+  payload?: Record<string, any>
 ): Promise<void> {
-  await logEvent("warning", {
+  await logEvent("warn", "warning", userAnonId, {
     message,
-    ...meta,
+    ...payload,
   });
 }

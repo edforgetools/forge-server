@@ -28,13 +28,16 @@ export function errorHandler(
     // Return JSON error response for API requests
     res.status(500).json({
       ok: false,
-      error:
+      code: "INTERNAL_ERROR",
+      message:
         process.env.NODE_ENV === "production"
           ? "Internal server error"
           : err.message,
       ...(process.env.NODE_ENV === "development" && {
-        stack: err.stack,
-        timestamp: new Date().toISOString(),
+        data: {
+          stack: err.stack,
+          timestamp: new Date().toISOString(),
+        },
       }),
     });
   } else {
@@ -182,8 +185,11 @@ export function apiNotFoundHandler(req: Request, res: Response) {
 
   res.status(404).json({
     ok: false,
-    error: "API endpoint not found",
-    path: req.path,
-    method: req.method,
+    code: "ENDPOINT_NOT_FOUND",
+    message: "API endpoint not found",
+    data: {
+      path: req.path,
+      method: req.method,
+    },
   });
 }
