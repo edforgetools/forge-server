@@ -7,18 +7,21 @@ This document outlines the performance characteristics and configurations for th
 ### Fly.io Configuration
 
 **Resource Allocation:**
+
 - **CPU:** 1 shared CPU
 - **Memory:** 256 MB
 - **Concurrency:** 25 hard limit, 20 soft limit (connections)
 - **Auto-scaling:** Enabled (min: 0, auto-stop/start machines)
 
 **Health Checks:**
+
 - **TCP Check:** 15s interval, 2s timeout
 - **HTTP Check:** 10s interval, 2s timeout, `/api/health` endpoint
 
 ### Vercel Configuration
 
 **Function Limits:**
+
 - **Max Duration:** 30 seconds
 - **Environment:** Production Node.js
 - **Build:** Includes `dist/**` and `src/**` files
@@ -26,6 +29,7 @@ This document outlines the performance characteristics and configurations for th
 ### Render Configuration
 
 **Resource Allocation:**
+
 - **Plan:** Starter
 - **Health Check:** `/api/health` endpoint
 - **Storage:** 1GB disk mounted at `/opt/render/project/media`
@@ -37,6 +41,7 @@ This document outlines the performance characteristics and configurations for th
 Based on `events.ndjson`, the following performance metrics are tracked:
 
 1. **API Response Times**
+
    ```json
    {
      "event": "api-request",
@@ -50,6 +55,7 @@ Based on `events.ndjson`, the following performance metrics are tracked:
    ```
 
 2. **Slow Response Detection**
+
    ```json
    {
      "event": "slow-response",
@@ -62,6 +68,7 @@ Based on `events.ndjson`, the following performance metrics are tracked:
    ```
 
 3. **File Upload Performance**
+
    ```json
    {
      "event": "file-upload",
@@ -123,11 +130,13 @@ Based on `events.ndjson`, the following performance metrics are tracked:
 ### Identified Bottlenecks
 
 1. **Audio/Video Processing**
+
    - Transcription endpoint shows 8.5s response times
    - Large file processing (15MB+ files logged)
    - Recommendation: Consider async processing for large files
 
 2. **File Upload**
+
    - 5MB+ files taking 3+ seconds to upload
    - Recommendation: Implement chunked uploads for large files
 
@@ -140,11 +149,13 @@ Based on `events.ndjson`, the following performance metrics are tracked:
 ### Production Monitoring
 
 1. **Response Time Tracking**
+
    - Monitor 95th percentile response times
    - Alert on responses > 10 seconds
    - Track endpoint-specific performance
 
 2. **Resource Utilization**
+
    - Monitor CPU and memory usage
    - Track concurrent connection limits
    - Monitor disk space for file uploads
@@ -170,22 +181,24 @@ time curl http://localhost:8787/api/health
 
 ## Performance Metrics Summary
 
-| Metric | Current Threshold | Target | Status |
-|--------|------------------|--------|---------|
-| API Response Time | 5000ms | 2000ms | ⚠️ Some endpoints > 5s |
-| File Upload | 5000ms | 3000ms | ⚠️ Large files > 5s |
-| Caption Generation | 3000ms | 2000ms | ✅ Generally good |
-| Concurrent Connections | 25 (Fly.io) | 50 | ✅ Adequate |
-| Rate Limit | 100/min | 100/min | ✅ Appropriate |
+| Metric                 | Current Threshold | Target  | Status                 |
+| ---------------------- | ----------------- | ------- | ---------------------- |
+| API Response Time      | 5000ms            | 2000ms  | ⚠️ Some endpoints > 5s |
+| File Upload            | 5000ms            | 3000ms  | ⚠️ Large files > 5s    |
+| Caption Generation     | 3000ms            | 2000ms  | ✅ Generally good      |
+| Concurrent Connections | 25 (Fly.io)       | 50      | ✅ Adequate            |
+| Rate Limit             | 100/min           | 100/min | ✅ Appropriate         |
 
 ## Next Steps
 
 1. **Short Term (This Week):**
+
    - Monitor transcription endpoint performance
    - Implement async processing for large files
    - Add performance alerts
 
 2. **Medium Term (Next Month):**
+
    - Implement Redis for rate limiting
    - Add performance monitoring dashboard
    - Optimize file upload handling

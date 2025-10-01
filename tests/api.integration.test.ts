@@ -8,6 +8,12 @@ import {
   errorHandler,
   apiNotFoundHandler,
 } from "../src/middleware/errorHandler";
+import { envelopeMiddleware } from "../src/middleware/envelope";
+import {
+  validateSchema,
+  validateContentType,
+} from "../src/validation/middleware";
+import { captionsSchema, exportZipSchema } from "../src/validation/schemas";
 
 // Load environment variables
 import * as dotenv from "dotenv";
@@ -25,6 +31,9 @@ const createTestApp = () => {
   app.use(express.json({ limit: "5mb" }));
   app.use(express.urlencoded({ extended: true }));
 
+  // Apply envelope middleware to all /api/* endpoints
+  app.use("/api", envelopeMiddleware);
+
   // Custom JSON error handler to catch malformed JSON
   app.use((error: any, req: any, res: any, next: any) => {
     if (
@@ -35,7 +44,8 @@ const createTestApp = () => {
       // This is a JSON parsing error
       return res.status(400).json({
         ok: false,
-        error: "Invalid JSON format",
+        code: "INVALID_JSON",
+        message: "Invalid JSON format",
       });
     }
     next(error);
@@ -43,64 +53,37 @@ const createTestApp = () => {
 
   // Health
   app.get("/api/health", (_req: any, res: any) => {
-    res.json({ ok: true, mock: true, serverTime: new Date().toISOString() });
+    res.envelope.success(
+      { mock: true, serverTime: new Date().toISOString() },
+      "Server is healthy"
+    );
   });
 
   // Mock captions
-  app.post("/api/captions", (req: any, res: any) => {
-    // Ensure content type is JSON
-    if (!req.is("application/json")) {
-      return res.status(400).json({
-        ok: false,
-        error: "Content-Type must be application/json",
-      });
+  app.post(
+    "/api/captions",
+    validateContentType,
+    validateSchema(captionsSchema),
+    (req: any, res: any) => {
+      const { transcript, tone, maxLen } = req.body;
+
+      const base = transcript
+        .slice(0, Math.max(20, Math.min(maxLen, 180)))
+        .replace(/\s+/g, " ")
+        .trim();
+
+      res.envelope.success(
+        {
+          captions: {
+            tweet: `MOCK: ${base}${base.length > 0 ? "." : ""}`,
+            instagram: `MOCK: ${base} #forge #creators`,
+            youtube: `MOCK: ${base} — generated with Forge`,
+          },
+        },
+        "Captions generated successfully"
+      );
     }
-
-    const { transcript, tone = "default", maxLen = 120 } = req.body ?? {};
-
-    // Input validation
-    if (
-      !transcript ||
-      typeof transcript !== "string" ||
-      transcript.trim().length === 0
-    ) {
-      return res.status(400).json({
-        ok: false,
-        error: "transcript is required and must be a non-empty string",
-      });
-    }
-
-    if (typeof maxLen !== "number" || maxLen < 10 || maxLen > 500) {
-      return res.status(400).json({
-        ok: false,
-        error: "maxLen must be a number between 10 and 500",
-      });
-    }
-
-    if (
-      typeof tone !== "string" ||
-      !["default", "professional", "casual", "funny"].includes(tone)
-    ) {
-      return res.status(400).json({
-        ok: false,
-        error: "tone must be one of: default, professional, casual, funny",
-      });
-    }
-
-    const base = transcript
-      .slice(0, Math.max(20, Math.min(maxLen, 180)))
-      .replace(/\s+/g, " ")
-      .trim();
-
-    res.json({
-      ok: true,
-      captions: {
-        tweet: `MOCK: ${base}${base.length > 0 ? "." : ""}`,
-        instagram: `MOCK: ${base} #forge #creators`,
-        youtube: `MOCK: ${base} — generated with Forge`,
-      },
-    });
-  });
+  );
 
   // Client log sink
   app.post("/api/log", (req: any, res: any) => {
@@ -108,136 +91,99 @@ const createTestApp = () => {
 
     // Input validation
     if (!name || typeof name !== "string") {
-      return res.status(400).json({
-        ok: false,
-        error: "Missing or invalid required field: name (must be a string)",
-      });
+      return res.envelope.error(
+        "Missing or invalid required field: name (must be a string)",
+        "INVALID_NAME"
+      );
     }
 
     if (name.length > 100) {
-      return res.status(400).json({
-        ok: false,
-        error: "name field is too long (max 100 characters)",
-      });
+      return res.envelope.error(
+        "name field is too long (max 100 characters)",
+        "FIELD_TOO_LONG"
+      );
     }
 
     if (meta && typeof meta !== "object") {
-      return res.status(400).json({
-        ok: false,
-        error: "meta field must be an object",
-      });
+      return res.envelope.error("meta field must be an object", "INVALID_META");
     }
 
     // Log with timestamp and structured format
     const timestamp = new Date().toISOString();
     console.log(`[${timestamp}] [log-event] ${name}`, meta);
 
-    res.json({ ok: true });
+    res.envelope.success(undefined, "Log entry recorded successfully");
   });
 
   // Export captions bundle as a ZIP of text files
-  app.post("/api/exportZip", (req: any, res: any, next: any) => {
-    // Ensure content type is JSON
-    if (!req.is("application/json")) {
-      return res.status(400).json({
-        ok: false,
-        error: "Content-Type must be application/json",
-      });
-    }
+  app.post(
+    "/api/exportZip",
+    validateContentType,
+    validateSchema(exportZipSchema),
+    (req: any, res: any, next: any) => {
+      const { transcript, tweet, instagram, youtube, captions } = req.body;
 
-    const { transcript, tweet, instagram, youtube, captions } = req.body ?? {};
+      try {
+        const zip = archiver("zip", { zlib: { level: 9 } });
+        const files: string[] = [];
 
-    // Input validation
-    if (
-      !transcript &&
-      !tweet &&
-      !instagram &&
-      !youtube &&
-      (!captions || Object.keys(captions).length === 0)
-    ) {
-      return res.status(400).json({
-        ok: false,
-        error: "At least one content field is required",
-      });
-    }
+        // Add transcript if provided
+        if (transcript) {
+          zip.append(transcript, { name: "transcript.txt" });
+          files.push("transcript.txt");
+        }
 
-    // Validate data types
-    if (transcript && typeof transcript !== "string") {
-      return res.status(400).json({
-        ok: false,
-        error: "transcript must be a string",
-      });
-    }
+        // Add caption files with stable filenames
+        if (tweet) {
+          zip.append(tweet, { name: "tweet.txt" });
+          files.push("tweet.txt");
+        }
+        if (instagram) {
+          zip.append(instagram, { name: "instagram.txt" });
+          files.push("instagram.txt");
+        }
+        if (youtube) {
+          zip.append(youtube, { name: "youtube.txt" });
+          files.push("youtube.txt");
+        }
 
-    if (tweet && typeof tweet !== "string") {
-      return res.status(400).json({
-        ok: false,
-        error: "tweet must be a string",
-      });
-    }
+        // Add any additional captions from the captions object
+        if (captions && typeof captions === "object") {
+          Object.entries(captions).forEach(([key, value]) => {
+            if (value && typeof value === "string") {
+              const filename = `${key}.txt`;
+              zip.append(value, { name: filename });
+              files.push(filename);
+            }
+          });
+        }
 
-    if (instagram && typeof instagram !== "string") {
-      return res.status(400).json({
-        ok: false,
-        error: "instagram must be a string",
-      });
-    }
+        // Collect ZIP data in memory
+        const chunks: Buffer[] = [];
+        zip.on("data", (chunk) => chunks.push(chunk));
 
-    if (youtube && typeof youtube !== "string") {
-      return res.status(400).json({
-        ok: false,
-        error: "youtube must be a string",
-      });
-    }
+        zip.on("end", () => {
+          const zipBuffer = Buffer.concat(chunks);
+          const zipBase64 = zipBuffer.toString("base64");
 
-    if (captions && typeof captions !== "object") {
-      return res.status(400).json({
-        ok: false,
-        error: "captions must be an object",
-      });
-    }
-
-    try {
-      res.setHeader("Content-Type", "application/zip");
-      res.setHeader(
-        "Content-Disposition",
-        'attachment; filename="forge_export.zip"'
-      );
-
-      const zip = archiver("zip", { zlib: { level: 9 } });
-      zip.on("error", next);
-      zip.pipe(res);
-
-      // Add transcript if provided
-      if (transcript) {
-        zip.append(transcript, { name: "transcript.txt" });
-      }
-
-      // Add caption files
-      if (tweet) {
-        zip.append(tweet, { name: "tweet.txt" });
-      }
-      if (instagram) {
-        zip.append(instagram, { name: "instagram.txt" });
-      }
-      if (youtube) {
-        zip.append(youtube, { name: "youtube.txt" });
-      }
-
-      // Add any additional captions from the captions object
-      if (captions && typeof captions === "object") {
-        Object.entries(captions).forEach(([key, value]) => {
-          if (value && typeof value === "string") {
-            zip.append(value, { name: `${key}.txt` });
-          }
+          res.envelope.success(
+            {
+              files: files,
+              zip: zipBase64,
+              contentType: "application/zip",
+              contentDisposition: 'attachment; filename="forge_export.zip"',
+            },
+            "ZIP file generated successfully"
+          );
         });
-      }
 
-      zip.finalize();
-    } catch (err) {
-      next(err as Error);
+        zip.on("error", next);
+        zip.finalize();
+      } catch (err) {
+        next(err as Error);
+      }
     }
-  });
+  );
 
   // 404 for /api/*
   app.use("/api", apiNotFoundHandler);
@@ -256,18 +202,20 @@ describe("API Endpoint Consistency Tests", () => {
   });
 
   describe("GET /api/health", () => {
-    it("should return { ok: true } with server info", async () => {
+    it("should return { ok: true, data, message } with server info", async () => {
       const response = await request(app).get("/api/health").expect(200);
 
       expect(response.body).toHaveProperty("ok", true);
-      expect(response.body).toHaveProperty("mock", true);
-      expect(response.body).toHaveProperty("serverTime");
-      expect(typeof response.body.serverTime).toBe("string");
+      expect(response.body).toHaveProperty("data");
+      expect(response.body).toHaveProperty("message", "Server is healthy");
+      expect(response.body.data).toHaveProperty("mock", true);
+      expect(response.body.data).toHaveProperty("serverTime");
+      expect(typeof response.body.data.serverTime).toBe("string");
     });
   });
 
   describe("POST /api/captions", () => {
-    it("should return { ok: true } with captions on valid request", async () => {
+    it("should return { ok: true, data, message } with captions on valid request", async () => {
       const response = await request(app)
         .post("/api/captions")
         .send({
@@ -278,13 +226,18 @@ describe("API Endpoint Consistency Tests", () => {
         .expect(200);
 
       expect(response.body).toHaveProperty("ok", true);
-      expect(response.body).toHaveProperty("captions");
-      expect(response.body.captions).toHaveProperty("tweet");
-      expect(response.body.captions).toHaveProperty("instagram");
-      expect(response.body.captions).toHaveProperty("youtube");
+      expect(response.body).toHaveProperty("data");
+      expect(response.body).toHaveProperty(
+        "message",
+        "Captions generated successfully"
+      );
+      expect(response.body.data).toHaveProperty("captions");
+      expect(response.body.data.captions).toHaveProperty("tweet");
+      expect(response.body.data.captions).toHaveProperty("instagram");
+      expect(response.body.data.captions).toHaveProperty("youtube");
     });
 
-    it('should return { ok: false, error: "..." } on missing transcript', async () => {
+    it("should return { ok: false, code, message } on missing transcript", async () => {
       const response = await request(app)
         .post("/api/captions")
         .send({
@@ -294,11 +247,12 @@ describe("API Endpoint Consistency Tests", () => {
         .expect(400);
 
       expect(response.body).toHaveProperty("ok", false);
-      expect(response.body).toHaveProperty("error");
-      expect(typeof response.body.error).toBe("string");
+      expect(response.body).toHaveProperty("code", "VALIDATION_ERROR");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain("transcript is required");
     });
 
-    it('should return { ok: false, error: "..." } on invalid content type', async () => {
+    it("should return { ok: false, code, message } on invalid content type", async () => {
       const response = await request(app)
         .post("/api/captions")
         .set("Content-Type", "text/plain")
@@ -306,13 +260,14 @@ describe("API Endpoint Consistency Tests", () => {
         .expect(400);
 
       expect(response.body).toHaveProperty("ok", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain(
+      expect(response.body).toHaveProperty("code", "INVALID_CONTENT_TYPE");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain(
         "Content-Type must be application/json"
       );
     });
 
-    it('should return { ok: false, error: "..." } on invalid tone', async () => {
+    it("should return { ok: false, code, message } on invalid tone", async () => {
       const response = await request(app)
         .post("/api/captions")
         .send({
@@ -323,11 +278,12 @@ describe("API Endpoint Consistency Tests", () => {
         .expect(400);
 
       expect(response.body).toHaveProperty("ok", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("tone must be one of");
+      expect(response.body).toHaveProperty("code", "VALIDATION_ERROR");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain("tone must be one of");
     });
 
-    it('should return { ok: false, error: "..." } on invalid maxLen', async () => {
+    it("should return { ok: false, code, message } on invalid maxLen", async () => {
       const response = await request(app)
         .post("/api/captions")
         .send({
@@ -338,15 +294,66 @@ describe("API Endpoint Consistency Tests", () => {
         .expect(400);
 
       expect(response.body).toHaveProperty("ok", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain(
-        "maxLen must be a number between 10 and 500"
+      expect(response.body).toHaveProperty("code", "VALIDATION_ERROR");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain("maxLen must be at least 10");
+    });
+
+    it("should return { ok: false, code, message } on empty transcript", async () => {
+      const response = await request(app)
+        .post("/api/captions")
+        .send({
+          transcript: "   ", // Only whitespace
+          tone: "professional",
+          maxLen: 120,
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty("ok", false);
+      expect(response.body).toHaveProperty("code", "VALIDATION_ERROR");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain(
+        "transcript cannot be empty or only whitespace"
+      );
+    });
+
+    it("should return { ok: false, code, message } on oversized transcript", async () => {
+      const response = await request(app)
+        .post("/api/captions")
+        .send({
+          transcript: "a".repeat(10001), // Too long
+          tone: "professional",
+          maxLen: 120,
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty("ok", false);
+      expect(response.body).toHaveProperty("code", "VALIDATION_ERROR");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain("transcript is too long");
+    });
+
+    it("should return { ok: false, code, message } on invalid maxLen type", async () => {
+      const response = await request(app)
+        .post("/api/captions")
+        .send({
+          transcript: "Test transcript",
+          tone: "professional",
+          maxLen: "not-a-number",
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty("ok", false);
+      expect(response.body).toHaveProperty("code", "VALIDATION_ERROR");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain(
+        "Expected number, received string"
       );
     });
   });
 
   describe("POST /api/log", () => {
-    it("should return { ok: true } on valid request", async () => {
+    it("should return { ok: true, message } on valid request", async () => {
       const response = await request(app)
         .post("/api/log")
         .send({
@@ -356,9 +363,13 @@ describe("API Endpoint Consistency Tests", () => {
         .expect(200);
 
       expect(response.body).toHaveProperty("ok", true);
+      expect(response.body).toHaveProperty(
+        "message",
+        "Log entry recorded successfully"
+      );
     });
 
-    it('should return { ok: false, error: "..." } on missing name', async () => {
+    it("should return { ok: false, code, message } on missing name", async () => {
       const response = await request(app)
         .post("/api/log")
         .send({
@@ -367,13 +378,14 @@ describe("API Endpoint Consistency Tests", () => {
         .expect(400);
 
       expect(response.body).toHaveProperty("ok", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain(
+      expect(response.body).toHaveProperty("code", "INVALID_NAME");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain(
         "Missing or invalid required field: name"
       );
     });
 
-    it('should return { ok: false, error: "..." } on invalid name type', async () => {
+    it("should return { ok: false, code, message } on invalid name type", async () => {
       const response = await request(app)
         .post("/api/log")
         .send({
@@ -383,13 +395,14 @@ describe("API Endpoint Consistency Tests", () => {
         .expect(400);
 
       expect(response.body).toHaveProperty("ok", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain(
+      expect(response.body).toHaveProperty("code", "INVALID_NAME");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain(
         "Missing or invalid required field: name"
       );
     });
 
-    it('should return { ok: false, error: "..." } on name too long', async () => {
+    it("should return { ok: false, code, message } on name too long", async () => {
       const longName = "a".repeat(101);
       const response = await request(app)
         .post("/api/log")
@@ -400,11 +413,12 @@ describe("API Endpoint Consistency Tests", () => {
         .expect(400);
 
       expect(response.body).toHaveProperty("ok", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("name field is too long");
+      expect(response.body).toHaveProperty("code", "FIELD_TOO_LONG");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain("name field is too long");
     });
 
-    it('should return { ok: false, error: "..." } on invalid meta type', async () => {
+    it("should return { ok: false, code, message } on invalid meta type", async () => {
       const response = await request(app)
         .post("/api/log")
         .send({
@@ -414,13 +428,14 @@ describe("API Endpoint Consistency Tests", () => {
         .expect(400);
 
       expect(response.body).toHaveProperty("ok", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("meta field must be an object");
+      expect(response.body).toHaveProperty("code", "INVALID_META");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain("meta field must be an object");
     });
   });
 
   describe("POST /api/exportZip", () => {
-    it("should return ZIP file on valid request", async () => {
+    it("should return JSON response with ZIP data on valid request", async () => {
       const response = await request(app)
         .post("/api/exportZip")
         .send({
@@ -431,26 +446,67 @@ describe("API Endpoint Consistency Tests", () => {
         })
         .expect(200);
 
-      expect(response.headers["content-type"]).toContain("application/zip");
-      expect(response.headers["content-disposition"]).toContain(
+      expect(response.body).toHaveProperty("ok", true);
+      expect(response.body).toHaveProperty("data");
+      expect(response.body).toHaveProperty(
+        "message",
+        "ZIP file generated successfully"
+      );
+      expect(response.body.data).toHaveProperty("files");
+      expect(response.body.data).toHaveProperty("zip");
+      expect(response.body.data).toHaveProperty(
+        "contentType",
+        "application/zip"
+      );
+      expect(response.body.data).toHaveProperty("contentDisposition");
+      expect(response.body.data.contentDisposition).toContain(
         'attachment; filename="forge_export.zip"'
       );
+
+      // Check that files array contains expected files
+      expect(response.body.data.files).toContain("transcript.txt");
+      expect(response.body.data.files).toContain("tweet.txt");
+      expect(response.body.data.files).toContain("instagram.txt");
+      expect(response.body.data.files).toContain("youtube.txt");
+
+      // Check that zip is base64 encoded
+      expect(typeof response.body.data.zip).toBe("string");
+      expect(response.body.data.zip.length).toBeGreaterThan(0);
     });
 
-    it('should return { ok: false, error: "..." } on missing content', async () => {
+    it("should include custom captions in files array", async () => {
+      const response = await request(app)
+        .post("/api/exportZip")
+        .send({
+          transcript: "Test transcript",
+          captions: {
+            custom1: "Custom caption 1",
+            custom2: "Custom caption 2",
+          },
+        })
+        .expect(200);
+
+      expect(response.body.data.files).toContain("transcript.txt");
+      expect(response.body.data.files).toContain("custom1.txt");
+      expect(response.body.data.files).toContain("custom2.txt");
+      expect(response.body.data.files).toHaveLength(3);
+    });
+
+    it("should return { ok: false, code, message } on missing content", async () => {
       const response = await request(app)
         .post("/api/exportZip")
         .send({})
         .expect(400);
 
       expect(response.body).toHaveProperty("ok", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain(
+      expect(response.body).toHaveProperty("code", "VALIDATION_ERROR");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain(
         "At least one content field is required"
       );
     });
 
-    it('should return { ok: false, error: "..." } on invalid content type', async () => {
+    it("should return { ok: false, code, message } on invalid content type", async () => {
       const response = await request(app)
         .post("/api/exportZip")
         .set("Content-Type", "text/plain")
@@ -458,13 +514,14 @@ describe("API Endpoint Consistency Tests", () => {
         .expect(400);
 
       expect(response.body).toHaveProperty("ok", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain(
+      expect(response.body).toHaveProperty("code", "INVALID_CONTENT_TYPE");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain(
         "Content-Type must be application/json"
       );
     });
 
-    it('should return { ok: false, error: "..." } on invalid transcript type', async () => {
+    it("should return { ok: false, code, message } on invalid transcript type", async () => {
       const response = await request(app)
         .post("/api/exportZip")
         .send({
@@ -474,11 +531,14 @@ describe("API Endpoint Consistency Tests", () => {
         .expect(400);
 
       expect(response.body).toHaveProperty("ok", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("transcript must be a string");
+      expect(response.body).toHaveProperty("code", "VALIDATION_ERROR");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain(
+        "Expected string, received number"
+      );
     });
 
-    it('should return { ok: false, error: "..." } on invalid captions type', async () => {
+    it("should return { ok: false, code, message } on invalid captions type", async () => {
       const response = await request(app)
         .post("/api/exportZip")
         .send({
@@ -488,21 +548,69 @@ describe("API Endpoint Consistency Tests", () => {
         .expect(400);
 
       expect(response.body).toHaveProperty("ok", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("captions must be an object");
+      expect(response.body).toHaveProperty("code", "VALIDATION_ERROR");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain(
+        "Expected object, received string"
+      );
+    });
+
+    it("should return { ok: false, code, message } on oversized transcript", async () => {
+      const response = await request(app)
+        .post("/api/exportZip")
+        .send({
+          transcript: "a".repeat(50001), // Too long
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty("ok", false);
+      expect(response.body).toHaveProperty("code", "VALIDATION_ERROR");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain("transcript is too long");
+    });
+
+    it("should return { ok: false, code, message } on oversized tweet", async () => {
+      const response = await request(app)
+        .post("/api/exportZip")
+        .send({
+          tweet: "a".repeat(10001), // Too long
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty("ok", false);
+      expect(response.body).toHaveProperty("code", "VALIDATION_ERROR");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain("tweet is too long");
+    });
+
+    it("should return { ok: false, code, message } on oversized caption value", async () => {
+      const response = await request(app)
+        .post("/api/exportZip")
+        .send({
+          captions: {
+            custom: "a".repeat(10001), // Too long
+          },
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty("ok", false);
+      expect(response.body).toHaveProperty("code", "VALIDATION_ERROR");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain("caption value is too long");
     });
   });
 
   describe("Error handling", () => {
-    it('should return { ok: false, error: "..." } for 404 API routes', async () => {
+    it("should return { ok: false, code, message } for 404 API routes", async () => {
       const response = await request(app).get("/api/nonexistent").expect(404);
 
       expect(response.body).toHaveProperty("ok", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("API endpoint not found");
+      expect(response.body).toHaveProperty("code", "ENDPOINT_NOT_FOUND");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain("API endpoint not found");
     });
 
-    it('should return { ok: false, error: "..." } for malformed JSON', async () => {
+    it("should return { ok: false, code, message } for malformed JSON", async () => {
       const response = await request(app)
         .post("/api/captions")
         .set("Content-Type", "application/json")
@@ -510,8 +618,9 @@ describe("API Endpoint Consistency Tests", () => {
         .expect(400);
 
       expect(response.body).toHaveProperty("ok", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("Invalid JSON format");
+      expect(response.body).toHaveProperty("code", "INVALID_JSON");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body.message).toContain("Invalid JSON format");
     });
   });
 
@@ -520,24 +629,29 @@ describe("API Endpoint Consistency Tests", () => {
       // Test health endpoint
       const healthResponse = await request(app).get("/api/health");
       expect(healthResponse.body).toHaveProperty("ok", true);
+      expect(healthResponse.body).toHaveProperty("message");
 
       // Test captions endpoint with valid data
       const captionsResponse = await request(app)
         .post("/api/captions")
         .send({ transcript: "Test transcript" });
       expect(captionsResponse.body).toHaveProperty("ok", true);
+      expect(captionsResponse.body).toHaveProperty("message");
 
       // Test log endpoint with valid data
       const logResponse = await request(app)
         .post("/api/log")
         .send({ name: "test-event" });
       expect(logResponse.body).toHaveProperty("ok", true);
+      expect(logResponse.body).toHaveProperty("message");
 
       // Test exportZip endpoint with valid data
       const exportResponse = await request(app)
         .post("/api/exportZip")
         .send({ transcript: "Test content" });
-      expect(exportResponse.status).toBe(200); // ZIP response, not JSON
+      expect(exportResponse.status).toBe(200);
+      expect(exportResponse.body).toHaveProperty("ok", true);
+      expect(exportResponse.body).toHaveProperty("message");
     });
 
     it("should return consistent error format for all endpoints", async () => {
@@ -546,17 +660,20 @@ describe("API Endpoint Consistency Tests", () => {
         .post("/api/captions")
         .send({});
       expect(captionsResponse.body).toHaveProperty("ok", false);
-      expect(captionsResponse.body).toHaveProperty("error");
+      expect(captionsResponse.body).toHaveProperty("code");
+      expect(captionsResponse.body).toHaveProperty("message");
 
       // Test log endpoint with invalid data
       const logResponse = await request(app).post("/api/log").send({});
       expect(logResponse.body).toHaveProperty("ok", false);
-      expect(logResponse.body).toHaveProperty("error");
+      expect(logResponse.body).toHaveProperty("code");
+      expect(logResponse.body).toHaveProperty("message");
 
       // Test exportZip endpoint with invalid data
       const exportResponse = await request(app).post("/api/exportZip").send({});
       expect(exportResponse.body).toHaveProperty("ok", false);
-      expect(exportResponse.body).toHaveProperty("error");
+      expect(exportResponse.body).toHaveProperty("code");
+      expect(exportResponse.body).toHaveProperty("message");
     });
   });
 });

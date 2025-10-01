@@ -4,13 +4,13 @@ This directory contains essential operational artifacts for the Forge server, in
 
 ## 📁 File Overview
 
-| File | Purpose | Status |
-|------|---------|---------|
-| `events.ndjson` | Structured application logs in NDJSON format | ✅ Active |
-| `security.md` | Security configuration and measures | ✅ Current |
-| `audit.md` | Dependency security audit results | ✅ Complete |
-| `perf.md` | Performance configuration and monitoring | ✅ Current |
-| `README.md` | This overview document | ✅ Current |
+| File            | Purpose                                      | Status      |
+| --------------- | -------------------------------------------- | ----------- |
+| `events.ndjson` | Structured application logs in NDJSON format | ✅ Active   |
+| `security.md`   | Security configuration and measures          | ✅ Current  |
+| `audit.md`      | Dependency security audit results            | ✅ Complete |
+| `perf.md`       | Performance configuration and monitoring     | ✅ Current  |
+| `README.md`     | This overview document                       | ✅ Current  |
 
 ## 📊 Log Format (events.ndjson)
 
@@ -51,11 +51,13 @@ The application uses **NDJSON (Newline Delimited JSON)** format for structured l
 ### Current Security Measures
 
 1. **CORS Configuration**
+
    - Restricted to `http://localhost:5173` for development
    - Prevents unauthorized cross-origin requests
    - Mitigates CSRF and unauthorized data access
 
 2. **Rate Limiting**
+
    - 100 requests per minute per IP address
    - Applied to all `/api/*` endpoints
    - In-memory sliding window implementation
@@ -78,14 +80,14 @@ The application uses **NDJSON (Newline Delimited JSON)** format for structured l
 
 All production dependencies have been audited and are current with no critical vulnerabilities:
 
-| Package | Version | Status | Risk Level |
-|---------|---------|---------|------------|
-| archiver | ^7.0.1 | Current | Low |
-| cors | ^2.8.5 | Current | Low |
-| dotenv | ^16.4.5 | Current | Low |
-| express | ^4.21.2 | Current | Low |
-| multer | ^2.0.2 | Current | Low |
-| zod | ^3.22.4 | Current | Low |
+| Package  | Version | Status  | Risk Level |
+| -------- | ------- | ------- | ---------- |
+| archiver | ^7.0.1  | Current | Low        |
+| cors     | ^2.8.5  | Current | Low        |
+| dotenv   | ^16.4.5 | Current | Low        |
+| express  | ^4.21.2 | Current | Low        |
+| multer   | ^2.0.2  | Current | Low        |
+| zod      | ^3.22.4 | Current | Low        |
 
 ### Critical Actions Completed
 
@@ -128,6 +130,7 @@ The server is configured for deployment on multiple platforms:
 ### Health Monitoring
 
 All deployments include health check endpoints at `/api/health` with:
+
 - 10-15 second check intervals
 - 2 second timeout thresholds
 - JSON response format
@@ -167,6 +170,7 @@ All deployments include health check endpoints at `/api/health` with:
 ### Log Analysis
 
 To analyze logs:
+
 ```bash
 # View recent errors
 cat artifacts/events.ndjson | jq 'select(.level=="error")'
@@ -190,6 +194,6 @@ curl https://your-app.onrender.com/api/health
 
 ---
 
-**Last Updated:** $(date)  
-**Next Review:** 30 days  
+**Last Updated:** $(date)
+**Next Review:** 30 days
 **Maintained By:** Development Team
